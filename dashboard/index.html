@@ -20,6 +20,7 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}.app{display:gri
 <button data-page="targets"><span class="ico">◎</span><span class="navtext">Targets & Builds</span></button>
 <button data-page="capsules"><span class="ico">▤</span><span class="navtext">Invariant Capsules</span></button>
 <button data-page="replays"><span class="ico">▷</span><span class="navtext">Replay Lab</span></button>
+<button data-page="judge-demo"><span class="ico">✓</span><span class="navtext">Run Judge Demo</span></button>
 <button data-page="cyphrun"><span class="ico">✳</span><span class="navtext">Cyphrun AI</span></button>
 <button data-page="cyphrus"><span class="ico">⌕</span><span class="navtext">Cyphrus History</span></button>
 <button data-page="audit"><span class="ico">⌁</span><span class="navtext">Audit & Experiments</span></button>
@@ -65,6 +66,20 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}.app{display:gri
 <div class="field"><label>Git ref</label><input name="git_ref" required placeholder="commit SHA or tag"></div>
 <div class="field"><label>Image digest (sha256:...)</label><input name="image_digest" required pattern="sha256:[0-9a-f]{64}" placeholder="sha256 + 64 hex chars"></div>
 <div class="field full"><button class="btn" type="submit">Add build</button></div></form><div id="buildOutput" class="jsonout hidden"></div></div>
+</section>
+<section id="judge-demo" class="section">
+<div class="pagehead"><div><div class="eyebrow">Judge-ready · deterministic · synthetic only</div><h1>Run Judge Demo</h1><div class="sub">One click runs real HTTP requests against isolated vulnerable and fixed API implementations. No external target, credentials, Docker digest entry, or third-party service is used by the behavioral test.</div></div><button class="btn primary" id="runJudgeDemo">▶ Run demo</button></div>
+<div class="banner"><div>⚠</div><div><strong>Local training scenario only</strong><span>Alice and Bob have synthetic private records. The vulnerable variant intentionally leaks Bob’s record; the fixed variant enforces server-side ownership. The test itself is isolated from production data.</span></div></div>
+<div class="grid two">
+<div class="card"><div class="cardhead"><h2>Scenario</h2><span class="tag">BOLA / IDOR</span></div><div class="activity">
+<div class="activity-row"><div class="activity-icon">A</div><div><b>Alice · record-alice-001</b><p>Must read her own record in both builds.</p></div></div>
+<div class="activity-row"><div class="activity-icon">B</div><div><b>Bob · record-bob-001</b><p>Alice must not read Bob's private record.</p></div></div>
+<div class="activity-row"><div class="activity-icon">1</div><div><b>judge-vulnerable-v1 · vulnerable</b><p>Expected finding: cross-user record is disclosed.</p></div></div>
+<div class="activity-row"><div class="activity-icon">2</div><div><b>judge-fixed-v1 · fixed</b><p>Expected regression pass: 403/404, no protected content.</p></div></div>
+</div></div>
+<div class="card"><div class="cardhead"><h2>Execution results</h2><span class="tag" id="judgeDemoStatus">NOT RUN</span></div><div id="judgeDemoOutput" class="jsonout">Click “Run demo” to execute the scenario. Verdicts are based on observed HTTP status codes and response bodies, not saved example results.</div></div>
+</div>
+<div class="card" style="margin-top:16px"><div class="cardhead"><h2>Targets & Builds integration</h2><span class="tag amber">LOCAL IMAGE METADATA</span></div><p class="muted">The test execution is self-contained. To register immutable Docker build metadata too, run <code>scripts/prepare_judge_demo.sh</code> from the repository checkout; it builds the demo image locally, obtains its actual image ID and current Git commit, and registers the two allowed build labels through the existing Targets API.</p><div id="judgeBuildsOutput" class="jsonout">Build registration has not been checked.</div><button class="btn ghost" id="checkJudgeBuilds" style="margin-top:10px">Check registered builds</button></div>
 </section>
 <section id="capsules" class="section">
 <div class="pagehead"><div><div class="eyebrow">Authorization invariant capsule</div><h1>Capsule Studio</h1><div class="sub">Create a structured, versioned permission rule that binds actor, object, action, expected outcomes and evidence to a specific target.</div></div></div>
@@ -117,7 +132,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let targets=[], lastCapsuleVersion=null, lastReplayId=null;
 const defaultBase=(location.protocol==='http:'||location.protocol==='https:')?location.origin:'http://127.0.0.1:8000';const cfg={base:sessionStorage.getItem('cypher.base')||defaultBase,key:sessionStorage.getItem('cypher.key')||'dev-only-change-me'};
 function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3600)}
-function navigate(page){$$('.section').forEach(s=>s.classList.toggle('active',s.id===page));$$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('#crumb').textContent=$(`[data-page="${page}"] .navtext`)?.textContent||'API Connection';if(page==='targets')loadTargets();if(page==='overview')refreshAll();if(page==='settings')checkHealth()}
+function navigate(page){$$('.section').forEach(s=>s.classList.toggle('active',s.id===page));$$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('#crumb').textContent=$(`[data-page="${page}"] .navtext`)?.textContent||'API Connection';if(page==='targets')loadTargets();if(page==='overview')refreshAll();if(page==='settings')checkHealth();if(page==='judge-demo')checkJudgeBuilds()}
 $$('.nav button').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.page)));
 async function api(path,opts={}){const base=cfg.base.replace(/\/+$/,'');const headers={'Authorization':'Bearer '+cfg.key,'Content-Type':'application/json',...(opts.headers||{})};let r;try{r=await fetch(base+path,{...opts,headers})}catch(e){throw new Error('Cannot reach API. Check the base URL, server and CORS configuration. '+e.message)}const type=r.headers.get('content-type')||'';let data=type.includes('json')?await r.json():await r.text();if(!r.ok)throw new Error(data?.detail||data?.message||data?.title||JSON.stringify(data));return data}
 function pretty(el,data){$(el).textContent=JSON.stringify(data,null,2);$(el).classList.remove('hidden')}
@@ -148,6 +163,9 @@ $('#historyForm').addEventListener('submit',async e=>{e.preventDefault();const f
 $('#recurrenceBtn').onclick=async()=>{try{pretty('#historyOutput',await api('/v1/history/recurrence'))}catch(e){$('#historyOutput').textContent=e.message;toast(e.message)}};
 $('#loadAudit').onclick=async()=>{try{pretty('#auditOutput',await api('/v1/audit?verify_chain=true&limit=100'))}catch(e){$('#auditOutput').textContent=e.message;toast(e.message)}};
 $('#experimentForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{const d=await api('/v1/experiments',{method:'POST',body:JSON.stringify({config:JSON.parse(f.get('config'))})});pretty('#experimentOutput',d);toast('Experiment created')}catch(err){$('#experimentOutput').textContent=err.message;$('#experimentOutput').classList.remove('hidden');toast(err.message)}});
+async function runJudgeDemo(){const button=$('#runJudgeDemo');button.disabled=true;button.textContent='Running…';$('#judgeDemoStatus').textContent='RUNNING';$('#judgeDemoOutput').textContent='Executing owner and cross-user HTTP requests against both isolated target variants…';try{const result=await api('/v1/judge-demo/run',{method:'POST',body:'{}'});pretty('#judgeDemoOutput',result);const s=result.summary||{};const ok=s.vulnerable_build_detected&&s.fixed_build_passed&&s.legitimate_access_preserved&&s.cross_user_behavior_changed;$('#judgeDemoStatus').textContent=ok?'PASS · DIFFERENTIAL CONFIRMED':'CHECK RESULTS';$('#judgeDemoStatus').className='tag '+(ok?'green':'red');toast(ok?'Judge demo completed: vulnerable flaw detected, fixed behavior verified.':'Demo completed; inspect observed case evidence.')}catch(e){$('#judgeDemoStatus').textContent='ERROR';$('#judgeDemoOutput').textContent=e.message;toast('Judge demo failed: '+e.message)}finally{button.disabled=false;button.textContent='▶ Run demo'}}
+async function checkJudgeBuilds(){try{const ts=await api('/v1/targets');const demo=ts.find(t=>t.name==='AuthTrace Judge Demo');if(!demo){pretty('#judgeBuildsOutput',{status:'not_registered',message:'No demo target registered yet. Run scripts/prepare_judge_demo.sh to build the image and register immutable build metadata.'});return}const builds=await api('/v1/targets/'+demo.target_id+'/builds');pretty('#judgeBuildsOutput',{target:demo,builds});}catch(e){$('#judgeBuildsOutput').textContent=e.message}}
+$('#runJudgeDemo').addEventListener('click',runJudgeDemo);$('#checkJudgeBuilds').addEventListener('click',checkJudgeBuilds);
 refreshAll();
 </script>
 </body></html>

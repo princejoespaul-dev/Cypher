@@ -80,8 +80,8 @@
         "properties": {
           "seed": {
             "default": 0,
-            "maximum": 2147483647.0,
-            "minimum": 0.0,
+            "maximum": 2147483647,
+            "minimum": 0,
             "title": "Seed",
             "type": "integer"
           }
@@ -224,7 +224,7 @@
             "title": "Run Id"
           },
           "sequence": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Sequence",
             "type": "integer"
           },
@@ -508,8 +508,8 @@
           },
           "limit": {
             "default": 5,
-            "maximum": 5.0,
-            "minimum": 1.0,
+            "maximum": 5,
+            "minimum": 1,
             "title": "Limit",
             "type": "integer"
           },
@@ -789,8 +789,8 @@
           },
           "repeats": {
             "default": 3,
-            "maximum": 10.0,
-            "minimum": 1.0,
+            "maximum": 10,
+            "minimum": 1,
             "title": "Repeats",
             "type": "integer"
           }
@@ -821,8 +821,8 @@
           },
           "repeats": {
             "default": 3,
-            "maximum": 10.0,
-            "minimum": 1.0,
+            "maximum": 10,
+            "minimum": 1,
             "title": "Repeats",
             "type": "integer"
           }
@@ -844,8 +844,8 @@
             "type": "string"
           },
           "completeness_score": {
-            "maximum": 1.0,
-            "minimum": 0.0,
+            "maximum": 1,
+            "minimum": 0,
             "title": "Completeness Score",
             "type": "number"
           },
@@ -938,8 +938,8 @@
         "properties": {
           "max_count": {
             "default": 5,
-            "maximum": 10.0,
-            "minimum": 1.0,
+            "maximum": 10,
+            "minimum": 1,
             "title": "Max Count",
             "type": "integer"
           },
@@ -3145,6 +3145,50 @@
         "summary": "Readjudicate Verdict",
         "tags": [
           "phase-5-findings-fix-verification"
+        ]
+      }
+    },
+    "/v1/judge-demo/scenario": {
+      "get": {
+        "operationId": "judge_demo_scenario_v1_judge_demo_scenario_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            },
+            "description": "Scenario description"
+          }
+        },
+        "summary": "Describe Judge Demo",
+        "tags": [
+          "judge-demo"
+        ]
+      }
+    },
+    "/v1/judge-demo/run": {
+      "post": {
+        "operationId": "run_judge_demo_v1_judge_demo_run_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            },
+            "description": "Observed vulnerable and fixed behavior"
+          }
+        },
+        "summary": "Run Judge Demo",
+        "tags": [
+          "judge-demo"
         ]
       }
     }

@@ -74,6 +74,18 @@ The Compose file starts PostgreSQL, Redis, MinIO and the API. It places referenc
 
 Run the reference API alone for development using `uvicorn targets.reference_api.app:app --host 127.0.0.1 --port 8001` only on a local machine. This manual mode is for endpoint development, not for sandbox-safety verification.
 
+## One-click judge demo (2–5 minutes)
+
+The dashboard includes **Run Judge Demo**, a self-contained BOLA/IDOR regression scenario using synthetic Alice and Bob identities and separate private records. It issues actual HTTP requests against fresh vulnerable and fixed FastAPI target instances; the verdict is derived from observed response status and body, not pre-filled demo results. Alice's own-record request is a positive control in both variants.
+
+1. Start the local CYPHER API using the [Local developer quickstart](#local-developer-quickstart), then open `http://127.0.0.1:8000/`.
+2. Select **Run Judge Demo** in the sidebar and click **Run demo**. The dashboard shows per-case status, expected decision, observed status, and evidence.
+3. Optional — to also register the demo builds in **Targets & Builds**, run `bash scripts/prepare_judge_demo.sh` from this Git checkout after the API is running. The script builds two local images from `Dockerfile.judge-demo`, reads their actual immutable Docker image IDs (`sha256:...`), uses the current Git commit as `git_ref`, starts both target containers on loopback-only ports, and creates the existing `vulnerable` and `fixed` build labels via the existing API. No arbitrary label or manually typed digest is used.
+
+The image-preparation script requires Docker, Git, curl, Python, a running local API, and permission to manage Docker containers. The target ports are bound to `127.0.0.1` only. The container targets are deliberately vulnerable training fixtures; do not expose them publicly. Cleanup the two demo containers with `docker rm -f cypher-judge-demo-vulnerable cypher-judge-demo-fixed`.
+
+The judge scenario is deliberately narrow. It demonstrates this seeded BOLA behavior only; it is not a claim of general-purpose scanning or production readiness. Run the test suite with `PYTHONPATH=src python -m pytest -q`.
+
 ## Tests and checks
 
 ```bash
