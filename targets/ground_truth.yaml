@@ -1,0 +1,20 @@
+# Ground truth is committed before the experiment arms are executed.
+# The reference service uses fixture data only and must run inside an internal sandbox.
+variant_truth:
+  vulnerable:
+    getOrder: vulnerable
+    updateOrder: vulnerable
+  fixed:
+    getOrder: protected
+    updateOrder: protected
+  partial_fix:
+    getOrder: protected
+    updateOrder: vulnerable
+  over_blocking:
+    getOrder: control_failure
+    updateOrder: control_failure
+  reintroduced:
+    getOrder: vulnerable
+    updateOrder: vulnerable
+mutation_dimensions: [principal, object_id]
+vulnerability_classes: [BOLA, IDOR]

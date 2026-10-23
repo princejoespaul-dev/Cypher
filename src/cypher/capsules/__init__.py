@@ -1,0 +1,1 @@
+"""Authorization Invariant Capsule domain."""

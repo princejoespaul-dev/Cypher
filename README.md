@@ -1,0 +1,106 @@
+# CYPHER — sandbox-only authorization replay backend
+
+CYPHER is a research prototype for **invariant-linked counterfactual replay** of object-level authorization behavior (BOLA/IDOR) against deliberately controlled sandbox API builds. It records a permitted positive control alongside a minimally changed unauthorized counterfactual, structured response evidence, optional independent database-state evidence, and a pure deterministic verdict. Findings and regression-suite history can then show whether a fix holds or a flaw returns.
+
+**Safety boundary:** this version is for local reference targets and systems explicitly controlled by the operator. It has no production-scanning mode. Do not direct it at public or third-party services.
+
+## What is included
+
+- A versioned, strict Pydantic Authorization Invariant Capsule (AIC), JSON Schema generation, canonical content hashes, operation/policy/fixture/principal/probe reference validation, structural minimality checks and fingerprinting.
+- Target/build registries and a deliberately vulnerable reference Orders API with `vulnerable`, `fixed`, `partial_fix`, `over_blocking` and `reintroduced` variants.
+- Sandbox environment-management interfaces, allowlist/DNS checks, connection-address pinning, redirect refusal and a read-only state-oracle adapter.
+- Redaction, content-addressed local evidence storage, observation models, deterministic verdict rules, completeness scoring, repeat/flaky handling and fix verification.
+- Findings and append-only outcome events, regression suites with a CI `failed` gate, and append-only readjudication.
+- Cyphrun (`guidance`) suggestion/explanation services with fake and OpenAI-compatible adapters, validation and budget accounting; Cyphrus (`history`) reviewed-case retrieval and recommendation services.
+- Experiment configuration, metric calculation and reproducibility manifest/export helpers.
+- FastAPI application, versioned OpenAPI document, SQL schema/migrations, local Compose setup, CI workflow and phase reports.
+
+## Important distinction: implemented code vs verified deployment
+
+This is a **coherent multi-phase backend codebase**, not a production-certified deployment. The only uploaded implementation context was the plan and the earlier Phase 5 overlay; no real pre-existing Cypher Phase 0–4 repository was available to merge. The codebase therefore includes a reconstructed implementation based on the plan, rather than a validated integration against your local project.
+
+The unit suite runs without containers and exercises the pure/domain/API-adapter behavior (**57 tests passed in the final environment check**). PostgreSQL DDL, RLS, append-only triggers, object-store/queue wiring, Docker networking/egress isolation, and end-to-end replay through the public API still require execution in a Docker-enabled environment. The default development application intentionally uses process-local repositories and a fake model; its replay worker fails closed until configured. **A passing unit suite does not satisfy the plan's full CI phase gates.** See `docs/phases/implementation-status.md` and each phase report.
+
+## Architecture
+
+```text
+FastAPI /v1 API
+  ├── core: config, auth/RBAC, errors, hash-chained audit
+  ├── capsules: AIC schema, policy registry, validators, versions and hashes
+  ├── targets: project-scoped targets, OpenAPI operations, principals, fixtures, builds
+  ├── sandbox: Docker environment interface, allowlist, reset/seed, read-only oracle
+  ├── evidence: redact-first, content-addressed evidence store
+  ├── harness: renderer/executor/replay, pure adjudicator, findings, fix verification, suites
+  ├── guidance (Cyphrun): bounded model suggestions; human approval only
+  ├── history (Cyphrus): reviewed cases, retrieval, citation-constrained recommendations
+  └── experiments: pinned configuration, provenance manifest, metrics and export
+
+PostgreSQL + pgvector: intended durable store / RLS / immutable-event constraints
+Redis: intended worker queue
+MinIO/S3: intended object-store deployment (local filesystem content-addressed store also provided)
+Docker internal network: only registered sandbox target builds
+```
+
+The AI modules are advisory: they must not adjudicate, alter recorded verdicts, or insert capsule versions without a validated suggestion and human approval. The deterministic adjudicator is a pure function that consumes recorded evidence.
+
+## CYPHER Control Center dashboard
+
+The bundled `dashboard/index.html` is a lightweight React-free browser dashboard that uses the existing FastAPI routes for targets/builds, capsule validation, replay requests, Cyphrun suggestions, Cyphrus recommendations, audit events and experiments. The FastAPI app serves it at `http://127.0.0.1:8000/` when running from this repository checkout.
+
+The UI is a control surface, not a claim that every backend phase is production-ready. In particular, the replay screen reports worker/configuration failures from the API rather than simulating successful runs. API key settings are kept in the current browser tab's `sessionStorage`.
+
+## Local developer quickstart
+
+Requirements: Python 3.12, Docker Compose v2 (for the full local service stack), and a Docker-capable host.
+
+```bash
+cp .env.example .env
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[test]'
+PYTHONPATH=src pytest -q
+PYTHONPATH=src python scripts/export_openapi.py
+```
+
+To boot the local supporting services and API:
+
+```bash
+make up
+curl http://127.0.0.1:8000/healthz
+curl http://127.0.0.1:8000/readyz
+```
+
+The Compose file starts PostgreSQL, Redis, MinIO and the API. It places reference targets on a separate Docker network marked `internal: true`; targets are not published to the host. To build the optional sample targets, use the `sandbox` profile and inspect the network configuration before running any replay. The current reconstructed API does **not** yet wire the Docker reference target, persistent Postgres repository, queue consumer and full replay protocol into one worker: do not interpret `make up` alone as completing the end-to-end replay gate.
+
+Run the reference API alone for development using `uvicorn targets.reference_api.app:app --host 127.0.0.1 --port 8001` only on a local machine. This manual mode is for endpoint development, not for sandbox-safety verification.
+
+## Tests and checks
+
+```bash
+make test
+python -m compileall -q src migrations
+make openapi
+make lint       # requires the optional quality extras
+make typecheck  # requires the optional quality extras
+make imports    # requires import-linter
+```
+
+The repository's unit tests use `PYTHONPATH=src` and avoid network/container calls. Keep golden adjudication bundles in review whenever rules change. Never replace an applied Alembic migration; add a new migration and retain historical evidence.
+
+## API and docs
+
+- Main OpenAPI contract: `docs/api/openapi.json` (regenerate with `make openapi`).
+- Phase-specific earlier artifact: `docs/api/phase5-openapi.json`.
+- Threat model and non-claims: `docs/security/THREAT_MODEL.md`.
+- Architectural decisions: `docs/adr/`.
+- Phase reports and outstanding gates: `docs/phases/`.
+
+All API mutations should be project-scoped, role-checked, audit-recorded and use structured `application/problem+json` errors. Auth is a bearer API key in v1; OIDC is outside scope. The production deployment must replace process-local state with durable adapters and must not accept the development API key.
+
+## Dependencies and release hygiene
+
+Direct pins are in `pyproject.toml` and `requirements-direct-pins.txt`. These pins preserve the package versions available to this implementation environment; some ancillary SDK pins were not install-tested because those SDKs and a package-index connection were unavailable. A complete transitive/hash-pinned lockfile could not be resolved here; generate and review `uv.lock` in a network-enabled release environment. Dependency/image scanning and immutable base-image digests are release gates, not claims made by this prototype. Compose base images should be pinned to reviewed digests before production-grade evaluation.
+
+## V1 non-goals
+
+Production scanning, autonomous exploitation, AI-adjudicated verdicts, GraphQL/gRPC, multi-step business-logic flaws, or claims of measured novelty/performance without the Phase 9 experiment results.
