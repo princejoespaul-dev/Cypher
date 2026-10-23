@@ -20,6 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cypher.judge_demo import router as judge_demo_router
 from cypher.capsules.models import AIC
 from cypher.capsules.policies import PolicyRegistry, PolicyRule
 from cypher.capsules.validators import ValidationContext, validate_aic_layers_1_to_4
@@ -221,6 +222,7 @@ def create_app(*, settings: Settings | None = None, api_keys: ApiKeyRegistry | N
     if api_keys is None:
         key_registry.register(settings.api_key, user_id=DEV_USER_ID, project_id=DEV_PROJECT_ID, role=CoreRole.ADMIN, name="local-development")
     app = FastAPI(title="CYPHER API", version="0.1.0", description="Sandbox-only invariant-linked authorization replay and evidence platform")
+    app.include_router(judge_demo_router)
     app.state.settings = settings
     app.state.api_keys = key_registry
     app.state.ready = (not settings.is_production) or production_dependencies_ready
